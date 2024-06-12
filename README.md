@@ -9,6 +9,6 @@ pip install dataclasses
 
 ## Para rodar
 ```
-docker build -t gerenciador .
-docker run -p 5000:5000 gerenciador 
+docker build -t blockChain .
+docker run -p 5000:5000 blockChain 
 ```

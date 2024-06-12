@@ -1,23 +1,19 @@
 # Use a imagem base do Python
 FROM python:3.12-slim
 
-# Defina o diretório de trabalho no contêiner
 WORKDIR /app
-
-# Copie os arquivos de requisitos para o contêiner
-COPY requirements.txt requirements.txt
+COPY requirements.txt ./
 
 # Instale as dependências
 RUN pip install -r requirements.txt
 
-
-# Copiar o arquivos principais para o conteiner
-COPY main.py main.py
-COPY templates/ templates/
-COPY site.db .
+# Copie os arquivos de requisitos para o contêiner
+COPY ["src/app", "src/app/."]
+COPY ["src/instance", "src/instance/."]
+COPY ["src/run.py", "src/run.py"]
 
 # Exponha a porta que o Flask usa
 EXPOSE 5000
 
 # Comando para rodar a aplicação
-CMD ["python", "main.py"]
+CMD ["python", "src/run.py"]

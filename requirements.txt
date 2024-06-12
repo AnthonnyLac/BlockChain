@@ -3,3 +3,4 @@ flask_sqlalchemy
 flask_migrate
 Flask-RESTful
 dataclasses
+requests
