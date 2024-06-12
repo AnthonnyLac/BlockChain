@@ -12,7 +12,7 @@ RUN pip install -r requirements.txt
 
 
 # Copiar o arquivos principais para o conteiner
-COPY src/main.py src/main.py
+COPY main.py main.py
 COPY templates/ templates/
 COPY site.db .
 
@@ -20,4 +20,4 @@ COPY site.db .
 EXPOSE 5000
 
 # Comando para rodar a aplicação
-CMD ["python", "src/main.py"]
+CMD ["python", "main.py"]

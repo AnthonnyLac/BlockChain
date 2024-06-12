@@ -10,5 +10,5 @@ pip install dataclasses
 ## Para rodar
 ```
 docker build -t gerenciador .
-docker run gerenciador  
+docker run -p 5000:5000 gerenciador 
 ```
