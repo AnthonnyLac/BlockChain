@@ -1,3 +1,5 @@
+## codigo principal
+
 from time import time
 from flask import Flask, request, redirect, render_template, jsonify
 from flask_sqlalchemy import SQLAlchemy
