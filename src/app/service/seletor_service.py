@@ -1,16 +1,18 @@
 from ..models import Seletor, Transacao, Validador
 import asyncio
 import requests
+from datetime import datetime, timedelta
+import random
 
+transacoes_em_espera = {}
 
-async def distribuir_transacoes_para_validadores(transacao):
+async def distribuir_transacoes_para_validadores(transacaoId):
     try:
         # Escolhe os validadores para a transação
-        validadores = escolher_validadores()
-
-        # Verifica se há pelo menos três validadores disponíveis
+        validadores = await escolher_validadores()
+        
         if len(validadores) < 3:
-            return False, "Não há validadores suficientes disponíveis. Transação em espera."
+            return False, "validadores insuficientes após espera. Operação cancelada!"
 
         # Lista para armazenar tarefas de envio de transação
         tasks = []
@@ -20,7 +22,7 @@ async def distribuir_transacoes_para_validadores(transacao):
             url = f"http://{validador.ip}/validador/process"
             
             # Cria uma tarefa assíncrona para enviar a transação para cada validador
-            task = asyncio.create_task(enviar_transacao_com_resposta(url, transacao))
+            task = asyncio.create_task(enviar_transacao_com_resposta(url, transacaoId))
             tasks.append(task)
 
         # Aguarda todas as tarefas completarem
@@ -67,18 +69,73 @@ def verificar_consenso(responses) -> bool:
     else:
         return False
 
-def escolher_validadores():
-     """ Escolhe os validadores para a transação """
+# Histórico de seleções para controlar a frequência
+validador_historico = {}
 
-     # Busca os validadores disponíveis
-     validadores_disponiveis = Validador.query.all()
+async def escolher_validadores():
+    """Escolhe os validadores para a transação"""
 
-     # Filtra validadores com saldo mínimo de 50 NoNameCoins
-     validadores_disponiveis = [v for v in validadores_disponiveis if v.saldo >= 50]
-     
-     # Verifica se há pelo menos três validadores escolhidos
-     if len(validadores_disponiveis) < 3:
-         # Coloca a transação em espera por até um minuto
+    # Busca os validadores disponíveis
+    validadores_disponiveis = Validador.query.all()
+
+    # Filtra validadores com saldo mínimo de 50 NoNameCoins e com menos de 3 flags
+    validadores_disponiveis = [v for v in validadores_disponiveis if v.saldo >= 50 and v.flags < 3]
+
+    # Verifica se há pelo menos três validadores disponíveis
+    if len(validadores_disponiveis) < 3:
+        print(f"validadores disponiveis: {len(validadores_disponiveis)}\nProcesso pausado")
+        await asyncio.sleep(60)
+            
+        # Tentar novamente após um minuto
+        # Busca os validadores disponíveis
+        validadores_disponiveis = Validador.query.all()
+
+        # Filtra validadores com saldo mínimo de 50 NoNameCoins e com menos de 3 flags
+        validadores_disponiveis = [v for v in validadores_disponiveis if v.saldo >= 50 and v.flags < 3]
+        
+        if len(validadores_disponiveis) < 3:
+            return False, "validadores insuficientes após espera. Operação cancelada!"
+            
+    # Ajusta a chance de escolha baseada nas flags
+    validadores_com_peso = []
+    for validador in validadores_disponiveis:
+        peso = validador.saldo
+        if validador.flags == 1:
+            peso *= 0.5
+        elif validador.flags == 2:
+            peso *= 0.25
+        
+        validadores_com_peso.append((validador, peso))
+
+    # Garantir que o percentual máximo de escolha de um validador seja de 20%
+    total_peso = sum(peso for _, peso in validadores_com_peso)
+    validadores_com_peso = [(v, min(peso, total_peso * 0.2)) for v, peso in validadores_com_peso]
+
+    # Evitar selecionar o mesmo validador cinco vezes seguidas
+    validadores_selecionados = []
+    for validador, peso in validadores_com_peso:
+        historico = validador_historico.get(validador.id, [])
+        if len(historico) < 5 or all(x != 'selecionado' for x in historico[-5:]):
+            validadores_selecionados.append((validador, peso))
+
+    # Verifica se há pelo menos três validadores escolhidos
+    if len(validadores_selecionados) < 3:
+        # Coloca a transação em espera por até um minuto
         return []
 
-     return validadores_disponiveis
+    # Selecionar validadores com base no peso ajustado
+    selecionados = random.choices(
+        [v for v, _ in validadores_selecionados],
+        [peso for _, peso in validadores_selecionados],
+        k=3
+    )
+
+    # Atualizar histórico de seleções
+    for validador in selecionados:
+        if validador.id not in validador_historico:
+            validador_historico[validador.id] = []
+        validador_historico[validador.id].append('selecionado')
+        if len(validador_historico[validador.id]) > 10:
+            validador_historico[validador.id].pop(0)
+
+    return selecionados

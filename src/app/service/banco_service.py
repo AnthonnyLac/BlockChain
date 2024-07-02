@@ -14,7 +14,7 @@ async def distribuir_transacoes_para_seletor(transacaoId):
         # Simula a distribuição de transações para os seletores
         seletores = Seletor.query.all()
 
-        print("quantidade de seletores cadastrados: {seletores}")
+        print(f"quantidade de seletores cadastrados: {{len(seletores)}}")
         
         # Verificar se há pelo menos três seletores disponíveis
         if len(seletores) < 1:

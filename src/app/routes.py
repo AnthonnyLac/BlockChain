@@ -95,7 +95,7 @@ def init_app(app):
     @app.route('/transacoes/<int:rem>/<int:reb>/<int:valor>', methods=['POST'])
     async def CriaTransacao(rem, reb, valor):
         transacao = services.create_transaction(rem, reb, valor)
-        await banco_service.distribuir_transacoes_para_seletor(transacao.id)
+        print(await banco_service.distribuir_transacoes_para_seletor(transacao.id))
         
         return jsonify(transacao)
 
@@ -156,6 +156,7 @@ def init_app(app):
 
     @app.route('/seletor/process', methods=['POST'])
     async def ProcessarTransacoes():
+        print("Seletor processesando transacoes")
         transacoesId = request.json
         await seletor_service.distribuir_transacoes_para_validadores(transacoesId)
         
@@ -163,9 +164,10 @@ def init_app(app):
     
     @app.route('/validador/process', methods=['POST'])
     async def validarTransacoes():
+        
         print("caiu validador")
         transacoesId = request.json
-        #await validador_service.distribuir_transacoes_para_validadores(transacoesId)
+       
         
-        return jsonify(transacoesId)
+        return jsonify("batata")
 
