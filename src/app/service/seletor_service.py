@@ -221,8 +221,7 @@ def iniciar_pagamento(transacao, validadores, selectorId):
     # Exemplo de como realizar o pagamento ao seletor
     seletor = services.get_selector_by_id(selectorId)  # Exemplo: busca o primeiro seletor no banco de dados
     if seletor:
-        seletor.saldo += taxa_seletor
-        db.session.commit()
+        seletor.saldo += round(taxa_seletor,2)
         print(f"Pagamento iniciado ao seletor {seletor.nome}. Valor: {taxa_seletor} NoNameCoins.")
 
     # Exemplo de como realizar o pagamento aos validadores
@@ -232,18 +231,21 @@ def iniciar_pagamento(transacao, validadores, selectorId):
         print(f"Pagamento iniciado ao validador {validador.nome}. Valor: {taxa_validador} NoNameCoins.")
 
     # Atualiza as contas do remetente e do recebedor
-    remetente = transacao.remetente
-    recebedor = transacao.recebedor
+    
+    
+    remetente = services.get_client_by_id(transacao.remetente)
+    recebedor = services.get_client_by_id(transacao.recebedor)
 
     # Calcula o valor líquido a ser recebido pelo recebedor
     valor_recebedor = valor_transacao - taxa_seletor - (len(validadores) * taxa_validador)
 
     # Subtrai o valor da transação mais as taxas da conta do remetente
-    remetente.qtdMoeda -= valor_transacao + taxa_seletor + (len(validadores) * taxa_validador)
-    db.session.commit()
+    remetente.qtdMoeda -= round(valor_transacao + taxa_seletor + (len(validadores) * taxa_validador),2)
     print(f"Valor da transação e taxas deduzidos da conta do remetente {remetente.nome}. Valor total: {valor_transacao + taxa_seletor + (len(validadores) * taxa_validador)} NoNameCoins.")
 
     # Adiciona o valor líquido da transação à conta do recebedor
-    recebedor.qtdMoeda += valor_recebedor
-    db.session.commit()
+    recebedor.qtdMoeda += round(valor_recebedor,2)
     print(f"Valor líquido da transação creditado na conta do recebedor {recebedor.nome}. Valor: {valor_recebedor} NoNameCoins.")
+    
+    db.session.commit()
+    

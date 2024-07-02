@@ -92,10 +92,12 @@ def init_app(app):
         transacoes = services.get_all_transactions()
         return jsonify(transacoes)
 
-    @app.route('/transacoes/<int:rem>/<int:reb>/<int:valor>', methods=['POST'])
-    async def CriaTransacao(rem, reb, valor):
+    @app.route('/transacoes', methods=['POST'])
+    async def CriaTransacao():
         
-        transacao = services.create_transaction(rem, reb, valor)
+        data = request.json
+        
+        transacao = services.create_transaction(data["remetente"], data["recebedor"], data["valor"])
         
         result, message = await banco_service.distribuir_transacoes_para_seletor_unit(transacao.id)
         
