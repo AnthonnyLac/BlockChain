@@ -164,10 +164,23 @@ def init_app(app):
     
     @app.route('/validador/process', methods=['POST'])
     async def validarTransacoes():
-        
         print("caiu validador")
-        transacoesId = request.json
-       
+        data = request.json
         
-        return jsonify("batata")
+        transacoesId = data["transacaoId"]
+        transacao = services.get_transaction_by_id(transacoesId)
+        
+        validador = validador_service.get_validator_by_id(data['validador_id'])
+        
+        status = validador_service.validar_transacao(transacao, validador)
+        
+        # if status == 1:
+        #     services.update_transaction(transacao.id, status=status)
+        #     validador_service.update_validator(transacao.remetente, transacao.valor)
+        # else:
+        #     services.update_transaction(transacao.id, status=status)
+        #
+        # return jsonify({'status': transacao.status})      
+        
+        return jsonify(transacoesId)
 

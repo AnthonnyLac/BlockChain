@@ -1,5 +1,6 @@
 from .. import db
 from ..models import Seletor, Transacao, Validador
+from datetime import datetime, timedelta
 
 def get_all_validators():
     return Validador.query.all()
@@ -22,3 +23,10 @@ def delete_validator(id):
     validador = Validador.query.get(id)
     db.session.delete(validador)
     db.session.commit()
+
+    
+def validar_transacao(transacao, validador):
+    
+    # Todas as regras foram passadas, transação concluída com sucesso
+    return 1  # Concluída com sucesso
+

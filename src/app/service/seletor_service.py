@@ -3,6 +3,7 @@ import asyncio
 import requests
 from datetime import datetime, timedelta
 import random
+from flask import jsonify
 
 transacoes_em_espera = {}
 
@@ -21,8 +22,16 @@ async def distribuir_transacoes_para_validadores(transacaoId):
         for validador in validadores:
             url = f"http://{validador.ip}/validador/process"
             
+            data = {
+                "transacaoId" : transacaoId,
+                "validador_id" : validador.id,
+                "chave_unica": validador.chave_unica
+            }
+            
+            print(data)
+            
             # Cria uma tarefa assíncrona para enviar a transação para cada validador
-            task = asyncio.create_task(enviar_transacao_com_resposta(url, transacaoId))
+            task = asyncio.create_task(enviar_transacao_com_resposta(url, data))
             tasks.append(task)
 
         # Aguarda todas as tarefas completarem
@@ -37,9 +46,10 @@ async def distribuir_transacoes_para_validadores(transacaoId):
     except Exception as e:
         return False, str(e)
 
-async def enviar_transacao_com_resposta(url, transacaoId):
+async def enviar_transacao_com_resposta(url, data):
     try:
-        response = requests.post(url, json=transacaoId)
+        
+        response = requests.post(url, json=data)
         if response.status_code == 200:
             print(f"Transação enviada com sucesso para {url}")
             print(response.json())
