@@ -19,10 +19,12 @@ class Seletor(db.Model):
     id: int
     nome: str
     ip: str
+    saldo: int
     
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(20), unique=False, nullable=False)
     ip = db.Column(db.String(15), unique=False, nullable=False)
+    saldo = db.Column(db.Integer, unique=False, nullable=False)
 
 @dataclass
 class Transacao(db.Model):
@@ -55,4 +57,3 @@ class Validador(db.Model):
     saldo = db.Column(db.Integer, unique=False, nullable=False)
     flags = db.Column(db.Integer, unique=False, nullable=False)
     ip = db.Column(db.String(15), unique=False, nullable=False)
-    

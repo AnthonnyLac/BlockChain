@@ -29,7 +29,7 @@ def get_all_selectors():
     return Seletor.query.all()
 
 def create_selector(nome, ip):
-    seletor = Seletor(nome=nome, ip=ip)
+    seletor = Seletor(nome=nome, ip=ip, saldo=0)
     db.session.add(seletor)
     db.session.commit()
     return seletor

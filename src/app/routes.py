@@ -94,8 +94,13 @@ def init_app(app):
 
     @app.route('/transacoes/<int:rem>/<int:reb>/<int:valor>', methods=['POST'])
     async def CriaTransacao(rem, reb, valor):
+        
         transacao = services.create_transaction(rem, reb, valor)
-        print(await banco_service.distribuir_transacoes_para_seletor(transacao.id))
+        
+        result, message = await banco_service.distribuir_transacoes_para_seletor_unit(transacao.id)
+        
+        if(result == False):
+            return(message), 500
         
         return jsonify(transacao)
 
@@ -156,23 +161,37 @@ def init_app(app):
 
     @app.route('/seletor/process', methods=['POST'])
     async def ProcessarTransacoes():
-        print("Seletor processesando transacoes")
-        transacoesId = request.json
-        await seletor_service.distribuir_transacoes_para_validadores(transacoesId)
+        data = request.json
         
-        return jsonify(transacoesId)
+        result, mensage = await seletor_service.distribuir_transacoes_para_validadores(data["seletorId"], data["transacoesId"])
+        
+        response = {
+            "mensage": mensage
+        }
+        
+        if(result is not None):
+            return response, 200
+        
+        return response, 500
     
     @app.route('/validador/process', methods=['POST'])
     async def validarTransacoes():
-        print("caiu validador")
+        
+        print("\ncaiu validador -> ok")
         data = request.json
         
         transacoesId = data["transacaoId"]
         transacao = services.get_transaction_by_id(transacoesId)
-        
         validador = validador_service.get_validator_by_id(data['validador_id'])
+        remetente = services.get_client_by_id(transacao.remetente)
+        taxa = data['taxa']
         
-        status = validador_service.validar_transacao(transacao, validador)
+        status, mensageValidacao = validador_service.validar_transacao(transacao, validador, remetente, taxa)
+        
+        response = {
+            "status" : status,
+            "mesageValidation" : mensageValidacao
+        }
         
         # if status == 1:
         #     services.update_transaction(transacao.id, status=status)
@@ -182,5 +201,4 @@ def init_app(app):
         #
         # return jsonify({'status': transacao.status})      
         
-        return jsonify(transacoesId)
-
+        return jsonify(response)
