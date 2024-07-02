@@ -39,3 +39,20 @@ class Transacao(db.Model):
     valor = db.Column(db.Integer, unique=False, nullable=False)
     horario = db.Column(db.DateTime, unique=False, nullable=False)
     status = db.Column(db.Integer, unique=False, nullable=False)
+    
+@dataclass
+class Validador(db.Model):
+    id: int
+    nome: str
+    chave_unica: str
+    saldo: int
+    flags: int
+    ip: str
+    
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(20), unique=False, nullable=False)
+    chave_unica = db.Column(db.String(50), unique=True, nullable=False)
+    saldo = db.Column(db.Integer, unique=False, nullable=False)
+    flags = db.Column(db.Integer, unique=False, nullable=False)
+    ip = db.Column(db.String(15), unique=False, nullable=False)
+    

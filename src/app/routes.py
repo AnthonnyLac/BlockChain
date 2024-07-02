@@ -1,6 +1,7 @@
 from flask import request, jsonify, render_template
 from datetime import datetime
 from app import services
+from .service import banco_service, seletor_service, validador_service
 
 def init_app(app):
     @app.route("/")
@@ -92,8 +93,10 @@ def init_app(app):
         return jsonify(transacoes)
 
     @app.route('/transacoes/<int:rem>/<int:reb>/<int:valor>', methods=['POST'])
-    def CriaTransacao(rem, reb, valor):
+    async def CriaTransacao(rem, reb, valor):
         transacao = services.create_transaction(rem, reb, valor)
+        await banco_service.distribuir_transacoes_para_seletor(transacao.id)
+        
         return jsonify(transacao)
 
     @app.route('/transacoes/<int:id>', methods=['GET'])
@@ -109,7 +112,60 @@ def init_app(app):
         except Exception as e:
             data = {"message": "Transação não atualizada"}
             return jsonify(data)
+        
+         
+    @app.route('/validador', methods=['GET'])
+    def listar_validadores():
+        validadores = validador_service.get_all_validators()
+        return jsonify(validadores)
+
+    @app.route('/validador', methods=['POST'])
+    def inserir_validador():
+        data = request.json
+        validador = validador_service.create_validator(data['nome'], data['chave_unica'], data['saldo'], data['ip'])
+        return jsonify(validador)
+
+    @app.route('/validador/<int:id>', methods=['GET'])
+    def obter_validador_por_id(id):
+        validador =  validador_service.get_validator_by_id(id)
+        return jsonify(validador)
+
+    @app.route('/validador/<int:id>/<int:saldo>', methods=["POST"])
+    def editar_validador(id, saldo):
+        try:
+            validador_service.update_validator(id, saldo)
+            return jsonify(['Alteração feita com sucesso'])
+        except Exception as e:
+            data = {"message": "Atualização não realizada"}
+            return jsonify(data)
+
+    @app.route('/validador/<int:id>', methods=['DELETE'])
+    def apagar_validador(id):
+        try:
+            validador_service.delete_validator(id)
+            data = {"message": "Validador Deletado com Sucesso"}
+            return jsonify(data)
+        except Exception as e:
+            data = {"message": "Erro ao deletar validador"}
+            return jsonify(data)
+
 
     @app.errorhandler(404)
     def page_not_found(error):
         return render_template('page_not_found.html'), 404
+
+    @app.route('/seletor/process', methods=['POST'])
+    async def ProcessarTransacoes():
+        transacoesId = request.json
+        await seletor_service.distribuir_transacoes_para_validadores(transacoesId)
+        
+        return jsonify(transacoesId)
+    
+    @app.route('/validador/process', methods=['POST'])
+    async def validarTransacoes():
+        print("caiu validador")
+        transacoesId = request.json
+        #await validador_service.distribuir_transacoes_para_validadores(transacoesId)
+        
+        return jsonify(transacoesId)
+
