@@ -6,3 +6,4 @@ dataclasses
 requests
 asyncio
 aiohttp
+asgiref
