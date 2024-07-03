@@ -4,3 +4,6 @@ flask_migrate
 Flask-RESTful
 dataclasses
 requests
+asyncio
+aiohttp
+asgiref

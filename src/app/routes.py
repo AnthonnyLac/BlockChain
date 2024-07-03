@@ -1,6 +1,7 @@
 from flask import request, jsonify, render_template
 from datetime import datetime
 from app import services
+from .service import banco_service, seletor_service, validador_service
 
 def init_app(app):
     @app.route("/")
@@ -16,6 +17,7 @@ def init_app(app):
     def InserirCliente(nome, senha, qtdMoeda):
         if nome and senha and qtdMoeda:
             cliente = services.create_client(nome, senha, qtdMoeda)
+            
             return jsonify(cliente)
         else:
             return jsonify(['Method Not Allowed'])
@@ -91,10 +93,21 @@ def init_app(app):
         transacoes = services.get_all_transactions()
         return jsonify(transacoes)
 
-    @app.route('/transacoes/<int:rem>/<int:reb>/<int:valor>', methods=['POST'])
-    def CriaTransacao(rem, reb, valor):
-        transacao = services.create_transaction(rem, reb, valor)
-        return jsonify(transacao)
+    @app.route('/transacoes', methods=['POST'])
+    async def CriaTransacao():
+        
+        data = request.json
+        
+        transacao = services.create_transaction(data["remetente"], data["recebedor"], data["valor"])
+        
+        result, message = await banco_service.distribuir_transacoes_para_seletor_unit(transacao.id)
+        
+        if(result == False):
+            services.update_transaction(transacao.id, 2)
+            return(message), 500
+        
+        services.update_transaction(transacao.id, 1)
+        return jsonify(message)
 
     @app.route('/transacoes/<int:id>', methods=['GET'])
     def UmaTransacao(id):
@@ -109,7 +122,92 @@ def init_app(app):
         except Exception as e:
             data = {"message": "Transação não atualizada"}
             return jsonify(data)
+        
+         
+    @app.route('/validador', methods=['GET'])
+    def listar_validadores():
+        validadores = validador_service.get_all_validators()
+        return jsonify(validadores)
+
+    @app.route('/validador', methods=['POST'])
+    def inserir_validador():
+        data = request.json
+        
+        if( data['saldo'] < 50):
+            data = {
+                "message": "Saldo insuficiente para cadastrar o validador"
+            }
+            return data, 400
+        
+        
+        validador = validador_service.create_validator(data['nome'], data['chave_unica'],  data['ip'], data['saldo'])
+        return jsonify(validador)
+
+    @app.route('/validador/<int:id>', methods=['GET'])
+    def obter_validador_por_id(id):
+        validador =  validador_service.get_validator_by_id(id)
+        return jsonify(validador)
+
+    @app.route('/validador/<int:id>/<int:saldo>', methods=["POST"])
+    def editar_validador(id, saldo):
+        try:
+            validador_service.update_validator(id, saldo)
+            return jsonify(['Alteração feita com sucesso'])
+        except Exception as e:
+            data = {"message": "Atualização não realizada"}
+            return jsonify(data)
+
+    @app.route('/validador/<int:id>', methods=['DELETE'])
+    def apagar_validador(id):
+        try:
+            validador_service.delete_validator(id)
+            data = {"message": "Validador Deletado com Sucesso"}
+            return jsonify(data)
+        except Exception as e:
+            data = {"message": "Erro ao deletar validador"}
+            return jsonify(data)
+
 
     @app.errorhandler(404)
     def page_not_found(error):
         return render_template('page_not_found.html'), 404
+
+    @app.route('/seletor/process', methods=['POST'])
+    async def ProcessarTransacoes():
+        data = request.json
+        
+        result, mensage = await seletor_service.distribuir_transacoes_para_validadores(data["seletorId"], data["transacoesId"])
+        
+        response = {
+            "mensage": mensage
+        }
+        
+        if(result is not False):
+            return response, 200
+        
+        
+        return jsonify(response), 500
+    
+    @app.route('/validador/process', methods=['POST'])
+    async def validarTransacoes():
+        
+        print("\ncaiu validador -> ok")
+        data = request.json
+        
+        transacoesId = data["transacaoId"]
+        transacao = services.get_transaction_by_id(transacoesId)
+        validador = validador_service.get_validator_by_id(data['validador_id'])
+        remetente = services.get_client_by_id(transacao.remetente)
+        taxa = data['taxa']
+        
+        status, mensageValidacao = validador_service.validar_transacao(transacao, validador, remetente, taxa)
+        
+        response = {
+            "status" : status,
+            "mesageValidation" : mensageValidacao,
+            "chave_unica": validador.chave_unica,
+            "validador_id": validador.id
+        }
+        
+        
+        return jsonify(response)

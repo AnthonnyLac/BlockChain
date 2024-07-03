@@ -29,7 +29,7 @@ def get_all_selectors():
     return Seletor.query.all()
 
 def create_selector(nome, ip):
-    seletor = Seletor(nome=nome, ip=ip)
+    seletor = Seletor(nome=nome, ip=ip, saldo=0)
     db.session.add(seletor)
     db.session.commit()
     return seletor
@@ -56,11 +56,6 @@ def create_transaction(remetente, recebedor, valor):
     db.session.add(transacao)
     db.session.commit()
     
-    seletores = Seletor.query.all()
-    for seletor in seletores:
-        url = f"http://{seletor.ip}/transacoes/"
-        requests.post(url, json=transacao)
-        
     return transacao
 
 def get_transaction_by_id(id):
