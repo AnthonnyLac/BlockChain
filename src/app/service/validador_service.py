@@ -2,12 +2,13 @@ from .. import db
 from ..models import Seletor, Transacao, Validador
 from datetime import datetime, timedelta
 from .. import services
+from sqlalchemy import desc
 
 
 def get_all_validators():
     return Validador.query.all()
 
-def create_validator(nome, chave_unica, saldo, ip):
+def create_validator(nome, chave_unica, ip, saldo):
     validador = Validador(nome=nome, chave_unica=chave_unica, saldo=saldo, flags=0, ip=ip)
     db.session.add(validador)
     db.session.commit()
@@ -34,17 +35,17 @@ def validar_transacao(transacao, validador, remetente, taxa):
         if transacao.valor + taxa > remetente.qtdMoeda:
             return 2 , "Não aprovada (erro de saldo insuficiente)"
 
+        transacaoUltima = Transacao.query.order_by(desc(Transacao.horario)).first()
+        
+        print(f"ultimaTrans: {transacaoUltima}")
+        
         # Verifica o horário da transação
-        if transacao.horario > datetime.now() or transacao.horario <= datetime.now() - timedelta(minutes=1):
+        if transacao.horario > datetime.now() or transacaoUltima.horario  > transacao.horario :
             return 2 , "Não aprovada (erro de horário)"
 
         # Verifica se o remetente excedeu o limite de transações no último minuto
         if contar_transacoes_ultimo_minuto(remetente) > 100:
             return 2, "Não aprovada (limite de transações excedido)"
-
-        # Verifica se a chave única do validador corresponde à chave recebida
-        #if validador.chave_unica != transacao.chave_unica:
-        #    return 2, "Não aprovada (chave única inválida)"
 
         # Todas as validações passaram, transação concluída com sucesso
         return 1, "transação concluída com sucesso"

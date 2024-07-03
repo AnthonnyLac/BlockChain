@@ -17,6 +17,7 @@ def init_app(app):
     def InserirCliente(nome, senha, qtdMoeda):
         if nome and senha and qtdMoeda:
             cliente = services.create_client(nome, senha, qtdMoeda)
+            
             return jsonify(cliente)
         else:
             return jsonify(['Method Not Allowed'])
@@ -102,9 +103,11 @@ def init_app(app):
         result, message = await banco_service.distribuir_transacoes_para_seletor_unit(transacao.id)
         
         if(result == False):
+            services.update_transaction(transacao.id, 2)
             return(message), 500
         
-        return jsonify(transacao)
+        services.update_transaction(transacao.id, 1)
+        return jsonify(message)
 
     @app.route('/transacoes/<int:id>', methods=['GET'])
     def UmaTransacao(id):
@@ -129,7 +132,15 @@ def init_app(app):
     @app.route('/validador', methods=['POST'])
     def inserir_validador():
         data = request.json
-        validador = validador_service.create_validator(data['nome'], data['chave_unica'], data['saldo'], data['ip'])
+        
+        if( data['saldo'] < 50):
+            data = {
+                "message": "Saldo insuficiente para cadastrar o validador"
+            }
+            return data, 400
+        
+        
+        validador = validador_service.create_validator(data['nome'], data['chave_unica'],  data['ip'], data['saldo'])
         return jsonify(validador)
 
     @app.route('/validador/<int:id>', methods=['GET'])
@@ -171,10 +182,11 @@ def init_app(app):
             "mensage": mensage
         }
         
-        if(result is not None):
+        if(result is not False):
             return response, 200
         
-        return response, 500
+        
+        return jsonify(response), 500
     
     @app.route('/validador/process', methods=['POST'])
     async def validarTransacoes():
@@ -192,15 +204,10 @@ def init_app(app):
         
         response = {
             "status" : status,
-            "mesageValidation" : mensageValidacao
+            "mesageValidation" : mensageValidacao,
+            "chave_unica": validador.chave_unica,
+            "validador_id": validador.id
         }
         
-        # if status == 1:
-        #     services.update_transaction(transacao.id, status=status)
-        #     validador_service.update_validator(transacao.remetente, transacao.valor)
-        # else:
-        #     services.update_transaction(transacao.id, status=status)
-        #
-        # return jsonify({'status': transacao.status})      
         
         return jsonify(response)

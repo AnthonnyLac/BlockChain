@@ -86,7 +86,8 @@ async def enviar_transacao(url, data):
                         error_text = await response.text()
                         return False, f"Falha ao distribuir transação para {url}. Tipo de conteúdo inesperado: {response.content_type}. Resposta: {error_text}"
                 else:
-                    return False, f"Falha ao distribuir transação para {url}. Status code: {response.status}"
+                    error_text = await response.text()
+                    return False, f"Falha ao distribuir transação para {url}.\nStatus code: {response.status}\nerror:{error_text}"
         except Exception as e:
             return False, f"Falha ao enviar transação para {url}. Erro: {str(e)}"
 

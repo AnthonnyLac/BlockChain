@@ -11,6 +11,8 @@ import aiohttp
 
 
 transacoes_em_espera = {}
+chaveUnicaSeletor = []
+
 
 async def distribuir_transacoes_para_validadores(seletorId, transacaoId):
     try:
@@ -18,8 +20,14 @@ async def distribuir_transacoes_para_validadores(seletorId, transacaoId):
         # Escolhe os validadores para a transação
         validadores = await escolher_validadores()
         
+        print(f"validatios: {validadores}")
+        
         if len(validadores) < 3:
-            return False, "validadores insuficientes após espera. Operação cancelada!"
+            await asyncio.sleep(60)
+            validadores = await escolher_validadores()
+            
+            if len(validadores) < 3:
+                return False, "validadores insuficientes apos espera. Operacao cancelada!"
 
         
         # Lista para armazenar tarefas de envio de transação
@@ -30,15 +38,22 @@ async def distribuir_transacoes_para_validadores(seletorId, transacaoId):
         if(result == False):
             return False, "Erro ao calcular taxa. Operação cancelada!"
 
+        
         # Envia a transação para os validadores escolhidos
         for validador in validadores:
+            
+            chaveUnica = f"{random.randint(1, 5000)}"
+            chaveUnicaSeletor.append(chaveUnica)
+            print(f"chaveUnica seção: {chaveUnica}")
+           
+            validador.chave_unica = chaveUnica
+            db.session.commit()
             
             url = f"http://{validador.ip}/validador/process"
             
             data = {
                 "transacaoId" : transacaoId,
                 "validador_id" : validador.id,
-                "chave_unica": validador.chave_unica,
                 "taxa" : taxa
             }
             
@@ -52,16 +67,19 @@ async def distribuir_transacoes_para_validadores(seletorId, transacaoId):
         responses = await asyncio.gather(*tasks)
         
 
-        # Verifica o consenso da transação baseado nas respostas dos validadores
-        if verificar_consenso(responses):
-            print("verificar_consenso")
+        if(verificar_consenso(responses) == False):
+            return False, "Transacao nao aprovada no Consenso"
+        
+        if(verificar_chave_unica_presente(responses) == False):
+            return False, "chave unica errada"
+        
+        verificar_validador_mal_intencionado(responses=responses)
+        
+        
+        transacao = services.get_transaction_by_id(transacaoId)
+        iniciar_pagamento(transacao, validadores=validadores, selectorId=seletorId)
             
-            transacao = services.get_transaction_by_id(transacaoId)
-            iniciar_pagamento(transacao, validadores=validadores, selectorId=seletorId)
-            
-            return True, "Transação aprovada pelos validadores."
-        else:
-            return False, "Transação não aprovada pelos validadores."
+        return True, "Transação aprovada pelos validadores."
         
     except Exception as e:
         return False, str(e)
@@ -103,6 +121,58 @@ def verificar_consenso(responses) -> bool:
         return True
     else:
         return False
+    
+def verificar_chave_unica_presente(responses) -> bool:
+    """ Verifica se a chave única está presente nas respostas dos validadores """
+    
+    responsesNum = len(responses) 
+    chavesAchadas = 0
+    
+    print("\nVerificando chave única")
+    # Verifica se a chave única está presente em alguma resposta
+    for response in responses:
+        chave_unica = response.get('chave_unica')
+        
+        if response and chave_unica in chaveUnicaSeletor:
+            print(f"Chave única {chave_unica} encontrada na resposta.")
+            chavesAchadas = chavesAchadas + 1
+    
+    if(chavesAchadas == responsesNum):
+        return True  
+    
+    raise ValueError(f"Chave única {chave_unica} não encontrada nas respostas.")
+    
+def verificar_validador_mal_intencionado(responses):
+    print("verificar_validador_mal_intencionado")
+    positivos = sum(1 for response in responses if response and response.get('status') == 1)
+    negativos = sum(1 for response in responses if response and response.get('status') == 2)
+
+    if positivos > negativos:
+        resultado_maioria = 'positivos'
+    elif negativos > positivos:
+        resultado_maioria = 'negativos'
+    else:
+        return 
+        
+    for response in responses:
+        status = response.get('status')
+        validador_id = response.get('validador_id')
+        validador = Validador.query.get(validador_id)
+        
+        print(validador)
+        
+        if status == 1 and resultado_maioria == 'negativos':
+            validador.flags = validador.flags + 1
+            db.session.commit()
+            
+            print(f"Validador {validador_id} adicionado à lista de mal intencionados.")
+        elif status == 2 and resultado_maioria == 'positivos':
+            validador.flags = validador.flags + 1
+            db.session.commit()
+            
+            print(f"Validador {validador_id} adicionado à lista de mal intencionados.")
+            
+    return 
 
 # Histórico de seleções para controlar a frequência
 validador_historico = {}
@@ -118,18 +188,7 @@ async def escolher_validadores():
 
     # Verifica se há pelo menos três validadores disponíveis
     if len(validadores_disponiveis) < 3:
-        print(f"validadores disponiveis: {len(validadores_disponiveis)}\nProcesso pausado")
-        await asyncio.sleep(60)
-            
-        # Tentar novamente após um minuto
-        # Busca os validadores disponíveis
-        validadores_disponiveis = Validador.query.all()
-
-        # Filtra validadores com saldo mínimo de 50 NoNameCoins e com menos de 3 flags
-        validadores_disponiveis = [v for v in validadores_disponiveis if v.saldo >= 50 and v.flags < 3]
-        
-        if len(validadores_disponiveis) < 3:
-            return False, "validadores insuficientes após espera. Operação cancelada!"
+        return []
             
     # Ajusta a chance de escolha baseada nas flags
     validadores_com_peso = []
@@ -153,9 +212,7 @@ async def escolher_validadores():
         if len(historico) < 5 or all(x != 'selecionado' for x in historico[-5:]):
             validadores_selecionados.append((validador, peso))
 
-    # Verifica se há pelo menos três validadores escolhidos
     if len(validadores_selecionados) < 3:
-        # Coloca a transação em espera por até um minuto
         return []
 
     # Selecionar validadores com base no peso ajustado
@@ -190,6 +247,7 @@ def calcular_taxa(transacaoId, validadores):
     try:
         # Busca a transação pelo ID para obter o valor
         transacao = Transacao.query.get(transacaoId)
+        
         if not transacao:
             raise ValueError("Transação não encontrada.")
         
@@ -232,12 +290,11 @@ def iniciar_pagamento(transacao, validadores, selectorId):
 
     # Atualiza as contas do remetente e do recebedor
     
-    
     remetente = services.get_client_by_id(transacao.remetente)
     recebedor = services.get_client_by_id(transacao.recebedor)
 
     # Calcula o valor líquido a ser recebido pelo recebedor
-    valor_recebedor = valor_transacao - taxa_seletor - (len(validadores) * taxa_validador)
+    valor_recebedor = valor_transacao #- taxa_seletor - (len(validadores) * taxa_validador)
 
     # Subtrai o valor da transação mais as taxas da conta do remetente
     remetente.qtdMoeda -= round(valor_transacao + taxa_seletor + (len(validadores) * taxa_validador),2)
